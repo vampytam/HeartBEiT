@@ -16,6 +16,8 @@ import os.path
 import random
 from typing import Any, Callable, cast, Dict, List, Optional, Tuple
 
+IMG_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm', '.tif', '.tiff', '.webp')
+
 
 def has_file_allowed_extension(filename: str, extensions: Tuple[str, ...]) -> bool:
     """Checks if a file is an allowed extension.
@@ -145,7 +147,7 @@ class DatasetFolder(VisionDataset):
             No class is a subdirectory of another.
         """
         classes = [d.name for d in os.scandir(dir) if d.is_dir()]
-        classes.sort()
+        # classes.sort()
         class_to_idx = {cls_name: i for i, cls_name in enumerate(classes)}
         return classes, class_to_idx
 
@@ -177,9 +179,6 @@ class DatasetFolder(VisionDataset):
         return len(self.samples)
 
 
-IMG_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm', '.tif', '.tiff', '.webp')
-
-
 def pil_loader(path: str) -> Image.Image:
     # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
     with open(path, 'rb') as f:
@@ -192,7 +191,7 @@ def accimage_loader(path: str) -> Any:
     import accimage
     try:
         return accimage.Image(path)
-    except IOError:
+    except ImportError | IOError:
         # Potentially a decoding problem, fall back to PIL.Image
         return pil_loader(path)
 
