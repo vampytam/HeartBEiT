@@ -48,6 +48,7 @@ class VisionTransformerForMaskedImageModeling(nn.Module):
             self.pos_embed = None
         self.pos_drop = nn.Dropout(p=drop_rate)
 
+        # ???
         if use_shared_rel_pos_bias:
             self.rel_pos_bias = RelativePositionBias(window_size=self.patch_embed.patch_shape, num_heads=num_heads)
         else:
