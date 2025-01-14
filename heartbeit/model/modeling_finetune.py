@@ -200,6 +200,9 @@ class PatchEmbed(nn.Module):
     def forward(self, x, **kwargs):
         B, C, H, W = x.shape
         # FIXME look at relaxing size constraints
+        # Relax size constraints by resizing the input image
+        # if H != self.img_size[0] or W != self.img_size[1]:
+        #     x = F.interpolate(x, size=self.img_size, mode='bilinear', align_corners=False)
         assert H == self.img_size[0] and W == self.img_size[1], \
             f"Input image size ({H}*{W}) doesn't match model ({self.img_size[0]}*{self.img_size[1]})."
         x = self.proj(x).flatten(2).transpose(1, 2)
