@@ -1,0 +1,20 @@
+## vscode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+## project
+node_modules/
+dist/
+coverage/
+*.log
+*.swp
+*.swo
+*.swn
+*.swnb
+*.swp
+*.swx
+*.swx~
+*.sw?
