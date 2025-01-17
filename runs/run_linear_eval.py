@@ -11,6 +11,8 @@ import os
 import argparse
 import json
 from pathlib import Path
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import torch
 from torch import nn
@@ -18,10 +20,10 @@ import torch.distributed as dist
 import torch.backends.cudnn as cudnn
 from torchvision import datasets
 from torchvision import transforms as pth_transforms
-
-import utils
-import modeling_finetune
 from timm.models import create_model
+
+from model import modeling_finetune
+import utils
 
 
 def load_model(model, checkpoint_file, model_key, model_prefix):

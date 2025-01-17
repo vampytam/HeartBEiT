@@ -12,10 +12,10 @@ import math
 import torch
 import torch.nn as nn
 from functools import partial
-
-from modeling_finetune import Block, _cfg, PatchEmbed, RelativePositionBias
 from timm.models.registry import register_model
 from timm.models.layers import trunc_normal_ as __call_trunc_normal_
+
+from .modeling_finetune import Block, _cfg, PatchEmbed, RelativePositionBias
 
 
 def trunc_normal_(tensor, mean=0., std=1.):

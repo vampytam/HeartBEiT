@@ -11,17 +11,18 @@
 # --------------------------------------------------------'
 import os
 import torch
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from torchvision import datasets, transforms
-
 from timm.data.constants import \
     IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD, IMAGENET_INCEPTION_MEAN, IMAGENET_INCEPTION_STD
-from transforms import RandomResizedCropAndInterpolationWithTwoPic
 from timm.data import create_transform
 
 from dall_e import map_pixels
-from masking_generator import MaskingGenerator
-from dataset_folder import ImageFolder
+from .transforms import RandomResizedCropAndInterpolationWithTwoPic
+from .masking_generator import MaskingGenerator
+from .dataset_folder import ImageFolder
 
 
 class DataAugmentationForBEiT(object):

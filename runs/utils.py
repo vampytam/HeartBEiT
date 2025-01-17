@@ -17,6 +17,8 @@ import json
 import datetime
 from pathlib import Path
 from collections import defaultdict, deque
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 import torch
@@ -27,8 +29,6 @@ from timm.utils import get_state_dict
 
 
 from model.modeling_discrete_vae import Dalle_VAE, DiscreteVAE
-
-
 
 class SmoothedValue(object):
     """Track a series of values and provide access to smoothed values over a

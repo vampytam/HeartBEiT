@@ -15,6 +15,8 @@ import time
 import json
 import os
 from pathlib import Path
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 from scipy import interpolate
@@ -24,13 +26,13 @@ from timm.data.mixup import Mixup
 from timm.models import create_model
 from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
 from timm.utils import ModelEma
-from optim_factory import create_optimizer, get_parameter_groups, LayerDecayValueAssigner
 
-from ..dataset.datasets import build_dataset
-from ..model import modeling_finetune
-from engine_for_finetuning import train_one_epoch, evaluate
+from dataset.datasets import build_dataset
+from model import modeling_finetune
+from optim_factory import create_optimizer, get_parameter_groups, LayerDecayValueAssigner
 from utils import NativeScalerWithGradNormCount as NativeScaler
 import utils
+from engine_for_finetuning import train_one_epoch, evaluate
 
 
 def get_args():

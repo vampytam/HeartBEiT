@@ -17,17 +17,18 @@ import torch
 import torch.backends.cudnn as cudnn
 import json
 import os
-
 from pathlib import Path
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from timm.models import create_model
-from optim_factory import create_optimizer
 
-from ..dataset.datasets import build_beit_pretraining_dataset
-from ..model import modeling_pretrain
-from engine_for_pretraining import train_one_epoch
+from dataset.datasets import build_beit_pretraining_dataset
+from model import modeling_pretrain
+from optim_factory import create_optimizer
 from utils import NativeScalerWithGradNormCount as NativeScaler
 import utils
+from engine_for_pretraining import train_one_epoch
 
 
 def get_args():
