@@ -15,9 +15,12 @@ from sklearn import metrics, model_selection
 
 from config import Config
 from load_checkpoint import LoadCheckpoint
+from dataset.dataset_folder import DatasetFolder, default_loader, IMG_EXTENSIONS
 
 np.random.seed(Config.random_state)
 torch.backends.cudnn.benchmark = True
+
+
 
 
 class ECGDataset(torch.utils.data.Dataset):
@@ -39,7 +42,8 @@ class ECGDataset(torch.utils.data.Dataset):
             std = [0.5, 0.5, 0.5]
 
         self.transforms = torchvision.transforms.Compose([
-            torchvision.transforms.Resize(Config.image_size, interpolation=3),
+            torchvision.transforms.Resize(224),  # 将较短边调整为224
+            torchvision.transforms.CenterCrop(224),  # 从中心裁剪出224x224的正方形
             torchvision.transforms.ToTensor(),
             torchvision.transforms.Normalize(mean=mean, std=std)
         ])
@@ -67,9 +71,12 @@ class Finetune:
         self.outcome = outcome
 
         # Separate into internal and external datasets
-        ext_val_site = "ST.LUKE'S-ROOSEVELT HOSPITAL (S)"
-        self.dataset = dataset.query('SITENAME != @ext_val_site')
-        self.ext_dataset = dataset.query('SITENAME == @ext_val_site')
+        # ext_val_site = "ST.LUKE'S-ROOSEVELT HOSPITAL (S)"
+        # self.dataset = dataset.query('SITENAME != @ext_val_site')
+        # self.ext_dataset = dataset.query('SITENAME == @ext_val_site')
+        split_index = int(len(dataset) * 0.9)
+        self.dataset = dataset.iloc[:split_index]
+        self.ext_dataset = dataset.iloc[split_index:]
 
     @staticmethod
     def eval_model(dataloader, model):
@@ -111,20 +118,45 @@ class Finetune:
         # Overall epoch loss
         testing_loss = testing_epoch_loss / len(dataloader)
 
-        df_pred = pd.DataFrame((all_labels, all_preds)).T
-        df_pred.columns = ['TRUE', 'PRED']
-
-        auroc = metrics.roc_auc_score(df_pred['TRUE'], df_pred['PRED'])
+        df_pred = pd.DataFrame({
+            'TRUE': np.array(all_labels).astype(int),
+            'PRED': np.array(all_preds).astype(float)
+        })
+        
+        valid_mask = df_pred['PRED'].notna()
+        if not valid_mask.all():
+            print(f"filtered {len(df_pred)-valid_mask.sum()} invalid number")
+            df_pred = df_pred[valid_mask].copy()
+        
+        if len(df_pred) < 2:
+            print(f"not enough valid number: ({len(df_pred)})")
+            return float('nan'), float('nan'), testing_loss, df_pred
+        
+        unique_labels = df_pred['TRUE'].unique()
+        if len(unique_labels) < 2:
+            print(f"only one class of label: {dict(df_pred['TRUE'].value_counts())}")
+            return float('nan'), float('nan'), testing_loss, df_pred
+        
+        try:
+            auroc = metrics.roc_auc_score(df_pred['TRUE'], df_pred['PRED'])
+        except ValueError as e:
+            print(df_pred['PRED'].describe())
+            return float('nan'), float('nan'), testing_loss, df_pred
         precision, recall, _ = metrics.precision_recall_curve(df_pred['TRUE'], df_pred['PRED'])
         aupr = metrics.auc(recall, precision)
-
+        
         return auroc, aupr, testing_loss, df_pred
 
     def gaping_maw(self, train_dataloader, test_dataloader, ext_val_dataloader, model, model_identifier, percentage):
         print('Model identifier:', model_identifier)
 
+        # 检查训练数据集大小
+        if len(train_dataloader) == 0:
+            print(f"Warning: Training dataloader is empty with {percentage*100}% data. Skipping this training.")
+            return
+
         # Housekeeping
-        result_dir = os.path.join('Results', self.outcome, model_identifier)
+        result_dir = os.path.join(self.outcome, model_identifier)
         os.makedirs(result_dir, exist_ok=True)
 
         # Use this model as the base for training further
@@ -133,7 +165,7 @@ class Finetune:
         model = model.cuda()
         
         # Create model params
-        if model_identifier == 'vit':
+        if model_identifier.startswith('vit'):
             # TODO: Sweep through these hyperparameters
             optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
         else:
@@ -143,9 +175,12 @@ class Finetune:
         criterion = torch.nn.CrossEntropyLoss() if Config.ce_loss else torch.nn.BCEWithLogitsLoss()
 
         scaler = torch.cuda.amp.GradScaler()
+        
+        # 确保 steps_per_epoch 至少为 1
+        steps_per_epoch = max(1, len(train_dataloader))
         scheduler = torch.optim.lr_scheduler.OneCycleLR(
             optimizer, max_lr=1e-3, epochs=Config.ft_epochs,
-            steps_per_epoch=len(train_dataloader))
+            steps_per_epoch=steps_per_epoch)
 
         # Keep track of performance
         all_results = []
@@ -208,17 +243,17 @@ class Finetune:
             print('AUROC:', auroc, 'AUPR:', aupr, 'Training loss:', training_loss, 'Testing loss:', testing_loss)
             print('Ext AUROC:', ext_auroc, 'Ext AUPR:', ext_aupr, 'Ext Testing loss:', ext_testing_loss)
 
-            outfile_name = os.path.join(result_dir, f'results_{percentage}.pickle')
-            df_results.to_pickle(outfile_name)
+            outfile_name = os.path.join(result_dir, f'results_{percentage}.csv')
+            df_results.to_csv(outfile_name)
 
             # Prediction probabilities for this model for this epoch
-            outfile_name = os.path.join(result_dir, f'prob_{percentage}_{epoch}.pickle')
-            df_pred.to_pickle(outfile_name)
+            outfile_name = os.path.join(result_dir, f'prob_{percentage}_{epoch}.csv')
+            df_pred.to_csv(outfile_name)
 
             # Prediction probabilities for this model for this epoch
-            outfile_name = os.path.join(result_dir, f'ext_prob_{percentage}_{epoch}.pickle')
+            outfile_name = os.path.join(result_dir, f'ext_prob_{percentage}_{epoch}.csv')
             if ext_df_pred is not None:
-                ext_df_pred.to_pickle(outfile_name)
+                ext_df_pred.to_csv(outfile_name)
 
             # Save the model at the end of each epoch
             model_out_dir = os.path.join(result_dir, 'models')
@@ -262,20 +297,14 @@ class Finetune:
         return model
 
     def create_dataloaders(self, model_identifier, percentage, return_dataframes=False):
-        splitter = model_selection.GroupShuffleSplit(
-            n_splits=1, random_state=Config.random_state)
-
-        # NOTE Make sure all dataframes correspond to this scheme
-        splits = splitter.split(
-            self.dataset['PATH'],
-            self.dataset['LABEL'],
-            groups=self.dataset['MRN'],
+        train_test_split = model_selection.train_test_split(
+            self.dataset,
+            test_size=0.2,  # 80%训练集, 20%测试集
+            stratify=self.dataset['LABEL'],  # 按标签分层采样
+            random_state=Config.random_state
         )
-
-        # Lazy loader
-        train, test = next(splits)
-        df_train = self.dataset.iloc[train]
-        df_test = self.dataset.iloc[test]
+        
+        df_train, df_test = train_test_split
 
         if return_dataframes:
             return df_train, df_test, self.ext_dataset
@@ -300,10 +329,15 @@ class Finetune:
         print('Testing prevalence:', (df_test['LABEL'].sum() / df_test['LABEL'].count()) * 100, '%')
         print('External validation prevalence:', (self.ext_dataset['LABEL'].sum() / self.ext_dataset['LABEL'].count()) * 100, '%')
 
+        # 动态调整 batch_size，确保至少有一个 batch
+        train_size = len(train_dataset)
+        batch_size = min(Config.batch_size, max(1, train_size // 2))
+        print(f'Using batch_size: {batch_size} for training size: {train_size}')
+
         # Create data loaders with these datasets
         train_dataloader = torch.utils.data.DataLoader(
             train_dataset,
-            batch_size=Config.batch_size,
+            batch_size=batch_size,
             shuffle=True,
             num_workers=40,
             drop_last=True,
@@ -326,7 +360,8 @@ class Finetune:
         return train_dataloader, test_dataloader, ext_val_dataloader
 
     def hammer_time(self):
-        with open('Errors.log', 'a') as outfile:
+        errorslog = os.path.join(self.outcome, 'Errors.log')
+        with open(errorslog, 'a') as outfile:
             outfile.write(f'{time.ctime()} New run\n')
 
         for percentage in Config.finetuning_percentage_iter:
@@ -344,5 +379,53 @@ class Finetune:
                         model, model_identifier, percentage)
 
                 except Exception as e:
-                    with open('Errors.log', 'a') as outfile:
+                    with open(errorslog, 'a') as outfile:
                         outfile.write(f'{time.ctime()} {self.outcome} {model_identifier} {percentage} {e}\n')
+
+def main():
+    torch.manual_seed(Config.random_state)
+    torch.cuda.manual_seed(Config.random_state)
+    
+    ds_folder = DatasetFolder(Config.dir_ecg_plots, loader=default_loader, extensions=IMG_EXTENSIONS)
+    dataset = pd.DataFrame(ds_folder.samples, columns=['PATH', 'LABEL'])
+    
+    # 1 创建微调类
+    finetune = Finetune(Config.outcome, dataset) # outcome: 输出目录, dataset: 数据集pandas dataframe['PATH', 'LABEL', 'MRN', 'SITENAME']
+    
+    for model_identifier in Config.models:
+        print(f"\ntraining begin: {model_identifier}")
+        
+        try:
+            # 2 创建对应模型，加载预训练权重
+            model = finetune.create_model(
+                Config.models[model_identifier]['internal_identifier'],
+                model_identifier
+            )
+            
+            for percentage in Config.finetuning_percentage_iter:
+                print(f"\n使用 {percentage*100}% 的训练数据")
+                
+                # 3 数据加载器
+                train_loader, test_loader, ext_val_loader = finetune.create_dataloaders(
+                    model_identifier=model_identifier,
+                    percentage=percentage
+                )
+                
+                # 4 微调和评估
+                finetune.gaping_maw(
+                    train_dataloader=train_loader,
+                    test_dataloader=test_loader, 
+                    ext_val_dataloader=ext_val_loader,
+                    model=model,
+                    model_identifier=model_identifier,
+                    percentage=percentage
+                )
+                
+        except Exception as e:
+            import logging
+            logging.exception(e)
+            print(f"when training {model_identifier} {percentage}%, an error occurred: {str(e)}")
+            continue
+
+if __name__ == "__main__":
+    main()

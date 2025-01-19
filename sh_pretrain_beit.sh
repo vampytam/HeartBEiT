@@ -3,7 +3,7 @@ OMP_NUM_THREADS=1
 
 python -m torch.distributed.launch --nproc_per_node=4 runs/run_beit_pretraining.py \
     --data_path "data/imagewoof2-320/train" `# 预训练数据集路径` \
-    --output_dir "output/pretrain_output/" `# 保存模型、日志的路径` \
+    --output_dir "output/pretrain/" `# 保存模型、日志的路径` \
     --model "beit_base_patch16_224_8k_vocab" `# 要训练的模型名称` \
     --discrete_vae_type "dall-e" `# VAE的类型` \
     --discrete_vae_weight_path "data/dalle" `# VAE权重的路径` \

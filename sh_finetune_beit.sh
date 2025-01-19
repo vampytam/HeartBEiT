@@ -8,8 +8,8 @@ python -m torch.distributed.launch --nproc_per_node=4 --master_port=29502 runs/r
     --nb_classes 10 `# 分类类别数量` \
     --data_set "image_folder" `# 数据集类型` \
     --disable_eval_during_finetuning `# 在微调过程中禁用评估` \
-    --finetune "output/pretrain_output/checkpoint-19.pth" `# 预训练模型权重路径` \
-    --output_dir "output/finetune_output" `# 保存模型的输出路径` \
+    --finetune "output/pretrain/checkpoint-19.pth" `# 预训练模型权重路径` \
+    --output_dir "output/finetune" `# 保存模型的输出路径` \
     --save_ckpt_freq 5 `# 保存模型的频率` \
     --batch_size 16 `# 每个批次的样本数量` \
     --epochs 20 `# 训练的总轮数` \

@@ -7,7 +7,7 @@ import torch
 import numpy as np
 from scipy import interpolate
 
-import modeling_finetune  # Models are auto-registered with the import
+from model import modeling_finetune  # Models are auto-registered with the import
 from config import Config
 
 
